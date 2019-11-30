@@ -1,0 +1,778 @@
+---
+title: "Breast Cancer Wisconsin (Diagnostic) Data Set"
+author: "Eduardo Sthory"
+date: "29 de noviembre de 2019"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: HarvardX - PH125.9x Data Science - Choose your own project
+classoption: a4paper
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(comment=NA, message=FALSE, warning=FALSE)
+
+```
+
+# 1. Overview
+
+In this project, the HarvardX "Choose-your-own: PH125.9x Data Science: Capstone Project" assignment will be fulfilled.
+
+We will begin with an Overview and an introduction to the topic, then an Analysis section consisting of data exploration, data preparation for models, generation, adjustment and evaluation of machine learning models to predict whether a breast cancer cell is benign or malignant
+
+Then it will show the results and finally the conclusions.
+
+# 2. Introduction
+
+Breast cancer is a pathology in which a malignant tumor
+It develops in the breast tissue and is one of the most common types of cancer, especially in women, more than 411,000 deaths annually worldwide.
+
+The global incidence is thought to be more than 23.6 million new cases of cancer each year by 2030.
+
+Mammography is used to detect breast cancer early, then proceed to the biopsy test with the "fine needle aspirates" (FNA) method that is the subject of this project, which is a safe method and accurate.
+
+After aspirating a drop of fluid into the breast mass, it is analyzed with the help of the miscroscope and photographed and analyzed with an "Xcyt" image analysis program, the edges of the nuclei are determined from initial points placed manually near these edges to then perform the interactive diagnostic process
+
+This project will train and evaluate the performance of several machine learning models that can predict the malignancy or not of a tumor, it is a binary classification problem where we will evaluate the accuracy, sensitivity and specificity and thus to find the best model.
+
+This is very useful since the diagnosis at an early stage facilitates the subsequent clinical management of patients and
+It can increase the survival rate of breast cancer patients.
+
+## Dataset
+
+The dataset is in https://www.kaggle.com/uciml/breast-cancer-wisconsin-data/version/2. 
+
+The .csv format file that contains the data (data2.csv) can be loaded from the github account.
+The dataset is in my github in this address: 
+https://github.com/sthory/Harvad-Data-Science/tree/master/Breast%20Cancer%20Project
+
+The characteristics of the data set that are the cell nuclei in the image are described below.
+
+
+Description:
+
+
+idID number:             Id number
+
+diagnosis:               The diagnosis of breast tissues (M = malignant, B = benign)
+
+radius_mean:             mean of distances from center to points on the perimeter
+
+texture_mean:            standard deviation of gray-scale values
+
+perimeter_mean:          mean size of the core tumor
+
+area_mean:               mean area 
+
+smoothness_mean:         mean of local variation in radius lengths
+
+compactness_mean:        mean of perimeter^2 / area - 1.0
+
+concavity_mean:          mean of severity of concave portions of the contour
+
+concave points_mean:     mean for number of concave portions of the contour
+
+symmetry_mean:           symmetry mean
+
+fractal_dimension_mean:  mean for 'coastline approximation' - 1
+
+radius_se:               standard error for the mean of distances from center to points on the perimeter
+
+texture_se:              standard error for standard deviation of gray-scale values
+
+perimeter_se:            standard error of perimeter
+
+area_se:                 standard error of area
+
+smoothness_se:           standard error for local variation in radius lengths
+
+compactness_se:          standard error for perimeter^2 / area - 1.0
+
+concavity_se:            standard error for severity of concave portions of the contour
+
+concave points_se:       standard error for number of concave portions of the contour
+
+symmetry_se:             standard error for symmetry
+
+fractal_dimension_se:    standard error for 'coastline approximation' - 1
+
+radius_worst:            'worst' or largest mean value for mean of distances from center to points on the perimeter
+
+texture_worst:           'worst' or largest mean value for standard deviation of gray-scale values
+
+perimeter_worst:         'worst' perimeter
+
+area_worst:              'worst' area
+
+smoothness_worst:        'worst' or largest mean value for local variation in radius lengths
+
+compactness_worst:       'worst' or largest mean value for perimeter^2 / area - 1.0
+
+concavity_worst:         'worst' or largest mean value for severity of concave portions of the contour
+
+concave points_worst:    'worst' or largest mean value for number of concave portions of the contour
+
+symmetry_worst:          'worst' symmetry
+
+fractal_dimension_worst: 'worst' or largest mean value for 'coastline approximation' - 1"
+
+Load Libraries
+```{r}
+if(!require(tidyverse)) 
+  install.packages("tidyverse", 
+                   repos = "http://cran.us.r-project.org")
+if(!require(caret)) 
+  install.packages("caret", 
+                   repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) 
+  install.packages("ggplot2", 
+                   repos = "http://cran.us.r-project.org")
+if(!require(funModeling)) 
+  install.packages("funModeling", 
+                   repos = "http://cran.us.r-project.org")
+if(!require(corrplot)) 
+  install.packages("corrplot", 
+                   repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(caret)
+library(ggplot2)
+library(funModeling)
+library(corrplot)
+```
+
+Load data
+
+```{r}
+datacancer = read.csv("data2.csv")  # read csv file 
+```
+
+Check for missing values
+
+```{r}
+map_int(datacancer, function(.x) sum(is.na(.x)))
+```
+
+Validation Dataset, split out validation dataset and create a list of 80% of the rows in the original dataset we can use for training.
+Remove the Id column and 33 number columns, after convert the data to numeric.
+
+```{r}
+datacancer <- datacancer[,-1]
+datacancer <- datacancer[,-ncol(datacancer)]
+```
+
+Create dataset of training and test validation
+
+```{r}
+set.seed(1)
+validationIndex <- createDataPartition(datacancer$diagnosis, 
+                                       p=0.80, 
+                                       list=FALSE)
+```
+
+Select 20% of the data for validation
+
+```{r}
+validation <- datacancer[-validationIndex,]
+```
+
+Use the remaining 80% of data to training and testing the models
+
+```{r}
+dataset <- datacancer[validationIndex,]
+```
+
+# 3. Analysis
+
+The objective of this step in the process is to better understand the problem.
+
+## Descriptive Statistics
+
+Let's start off by confirming the dimensions of the dataset.
+
+### Explore dataset
+
+Dataset dimensions
+
+```{r}
+dim(dataset)
+```
+
+First ten rows
+
+```{r}
+head(dataset, 10)
+```
+
+Field class
+
+```{r}
+sapply(dataset, class)
+```
+
+Convert input values to numeric
+
+```{r}
+for(i in 2:ncol(dataset)) {
+  dataset[,i] <- as.numeric(as.character(dataset[,i]))
+}
+```
+
+Dataset Summary
+
+```{r}
+summary(dataset)
+```
+
+Diagnosis distribution
+
+```{r}
+cbind(freq=table(dataset$diagnosis),
+      percentage=prop.table(table(dataset$diagnosis))*100)
+```
+
+We see the correlation between the attributes. Summarize correlations between input variables.
+
+```{r}
+#cor(dataset[,2:ncol(dataset)])
+
+# Correlation plot
+correlationMatrix <- cor(dataset[,2:ncol(dataset)])
+corrplot(correlationMatrix, 
+         method = "color",
+         order = "FPC", 
+         tl.cex = 0.8)
+```
+
+
+The graph shows that many variables are highly correlated with each other.
+
+## Unimodal Data Visualizations
+This is the distribution of individual attributes with histograms in the data set.
+
+```{r}
+# Graphics values
+lineas <- 5
+columnas <- 6
+
+plot_num(dataset %>% select(-diagnosis), 
+         bins=10)
+```
+
+Bimodal and normal distributions can be observed. To get a more uniform view of the distributions we will see density graphs
+
+```{r}
+# density plot for each attribute
+
+lineas <- 1
+columnas <- 3
+# density plot for each attribute
+par(mfrow=c(lineas,columnas))
+for(i in 2:ncol(dataset)) {
+    plot(density(dataset[,i]), 
+         main=names(dataset)[i])
+}
+```
+
+These frames give us the reason for the initial idea, 
+you can see normal distributions and a few with two  
+bumps (bimodal).
+
+Now we see the distributions using box and whisker plots
+
+```{r}
+# boxplots for each attribute
+par(mfrow=c(lineas,columnas))
+for(i in 2:ncol(dataset)) {
+  boxplot(dataset[,i], 
+          main=names(dataset)[i])
+}
+```
+
+## Multimodal Data Visualizations
+Next we will see the interactions between the attributes.
+First with a scatterplot matrix of the attributes colored 
+by the 'diagnosis' values.
+
+```{r}
+# scatterplot matrix
+
+# mean
+pairs(dataset[,2:11], 
+      names(dataset[,2:11]), 
+      col=dataset$diagnosis)
+
+# Standard error
+pairs(dataset[,12:21], 
+      names(dataset[,12:21]), 
+      col=dataset$diagnosis)
+
+# Worst
+pairs(dataset[,22:ncol(dataset)], 
+      names(dataset[,22:ncol(dataset)]), 
+      col=dataset$diagnosis)
+```
+
+
+We can see that black (benign) clusters around the lower left
+corner (smaller values) and red (malignant) is everywhere.
+
+## Evaluating models
+
+As we do not know which algorithms will work well in this data, 
+we will try several models and check which ones are the best.
+
+We will define how we will do the tests, we will use cross 
+validation 10 times with 3 repetitions. Since it is a binary 
+diagnosisification problem, we will use 'Accuracy' and 'Kappa'
+metrics.
+
+We define this function as follows:
+
+```{r}
+# 10-fold cross validation with 3 repeats
+
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3)
+metric <- "Accuracy"
+```
+
+Now we will create the models that we are going to evaluate, 
+we will use the default parameters and then we will consider 
+the respective settings.
+In order for each algorithm to be evaluated in exactly the same 
+data divisions, we need to reset the seed of random numbers 
+before training the models.
+
+```{r}
+# Generalized Linear Model
+set.seed(1)
+fit.glm <- dataset %>%
+  train(diagnosis~., 
+        data=., 
+        method="glm", 
+        metric=metric, 
+        trControl=trainControl)
+
+# SVM - Support Vector Machines
+set.seed(1)
+fit.svm <- dataset %>%  
+  train(diagnosis~., 
+        data=., 
+        method="svmRadial", 
+        metric=metric,
+        trControl=trainControl)
+
+# Linear Discriminant Analysis
+set.seed(1)
+fit.lda <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="lda", 
+        metric=metric, 
+        trControl=trainControl)
+
+# Naive Bayes
+set.seed(1)
+fit.nb <- dataset %>%  
+  train(diagnosis~., 
+        data=., 
+        method="nb", 
+        metric=metric, 
+        trControl=trainControl)
+
+# K-nearest Neighbors
+set.seed(1)
+fit.knn <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="knn", 
+        metric=metric, 
+        trControl=trainControl)
+
+# CART - diagnosisification and Regression Trees
+set.seed(1)
+fit.cart <- dataset %>%  
+  train(diagnosis~., 
+        data=., 
+        method="rpart", 
+        metric=metric,
+        trControl=trainControl)
+
+# Comparing Models
+results <- resamples(list(LG=fit.glm, 
+                          SVM=fit.svm,
+                          LDA=fit.lda, 
+                          NB=fit.nb, 
+                          KNN=fit.knn,
+                          CART=fit.cart))
+summary(results)
+dotplot(results)
+```
+
+We can see that SVM (97.73%) and LDA (96.05%) had the 
+highest 'Accuracy'.
+In the Kappa score also SVM (95.15%) was the best, 
+followed by LG (91.35%).
+
+It is very possible that we have some skewed distributions, 
+we will use the Box-Cox method to adjust and normalize these 
+distributions, the data will be transformed using a Box-Cox 
+power transformation to flatten the distributions.
+
+```{r}
+# 10-fold cross validation with 3 repeats
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3)
+metric <- "Accuracy"
+
+# LG
+set.seed(1)
+fit.glm <- dataset %>% 
+  train(diagnosis~., 
+        data = ., 
+        method = "glm", 
+        metric = metric, 
+        preProc = c("BoxCox"),
+        trControl = trainControl)
+
+# SVM
+set.seed(1)
+fit.svm <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="svmRadial", 
+        metric=metric,
+        preProc=c("BoxCox"), trControl=trainControl)
+
+# LDA
+set.seed(1)
+fit.lda <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="lda", 
+        metric=metric, 
+        preProc=c("BoxCox"),
+        trControl=trainControl)
+
+# Naive Bayes
+set.seed(1)
+fit.nb <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="nb", 
+        metric=metric, 
+        preProc=c("BoxCox"),
+        trControl=trainControl)
+
+# KNN
+set.seed(1)
+fit.knn <- dataset %>%  
+  train(diagnosis~., 
+        data=., 
+        method="knn", 
+        metric=metric, 
+        preProc=c("BoxCox"),
+        trControl=trainControl)
+
+# CART
+set.seed(1)
+fit.cart <- dataset %>% 
+  train(diagnosis~., 
+        data=., 
+        method="rpart", 
+        metric=metric,
+        preProc=c("BoxCox"), trControl=trainControl)
+
+# Compare algorithms
+transformResults <- resamples(list(LG=fit.glm, 
+                                   SVM=fit.svm,
+                                   LDA=fit.lda, 
+                                   NB=fit.nb,
+                                   KNN=fit.knn,
+                                   CART=fit.cart))
+summary(transformResults)
+dotplot(transformResults)
+```
+
+We continue to see how the SVM (97.81%) and 
+LDA (95.22%) models still have the best 'Accuracy', 
+similarly in the 'Kappa', SVM (95.15%) and LDA (91.35%) 
+are the best.
+
+## Model Tuning
+
+Now, knowing that SVM is the best results 
+in our tests, we will make some adjustments to try to 
+improve accuracy.
+Note: LDA has no parameters to adjust
+
+### Tuning SVM
+
+We see which parameters adjust
+
+```{r}
+modelLookup("svmRadial")
+```
+
+We can adjust 'sigma' and 'C'
+
+The SVM model in the 'caret' package has two parameters 
+that can be adjusted, these are: 1: sigma which is a 
+smoothing term and 2: C which is a cost constraint. 
+We will test for C a range of values between 1 and 15. 
+For sigma small values, approximately 0.1.
+
+```{r}
+# 10-fold cross validation with 3 repeats
+
+trainControl <- trainControl(method = "repeatedcv", 
+                             number=10, 
+                             repeats=3)
+metric <- "Accuracy"
+
+set.seed(1)
+
+grid <- expand.grid(.sigma = c(0.025, 0.05, 0.1, 0.15),
+                    .C = seq(1, 15, by=1))
+
+fit.svm <- dataset %>%
+  train(diagnosis~., 
+        data = ., 
+        method = "svmRadial", 
+        metric = metric, 
+        tuneGrid = grid,
+        preProc = c("BoxCox"), 
+        trControl = trainControl)
+
+print(fit.svm)
+
+plot(fit.svm)
+
+fit.svm$bestTune
+```
+
+### ROC curve variable importance
+
+```{r}
+ggplot(varImp(fit.svm))
+varImp(fit.svm)
+```
+
+Best accuracy: sigma: 0.025   C: 1  Accuracy: 0.9838808 
+ Kappa: 0.9651788
+
+We can see that we made an improvement with the adjustments: 
+in the SVM now it is 98.03%.
+And in the Kappa score it is 95.75%.
+
+## Ensemble Methods 
+
+A boosting and bagging ensemble algorithm will be applied.
+Since the decision tree methods underlie these models, it is possible 
+to infer that CART (BAG) and 'Random Forest (RF)' like Bagging and 
+'Stochastic Gradient Boosting (GBM)' and C5.0 (C50) like Boosting can 
+do an excellent job let's try them and see. 
+We will use the same test data as before, including Box-Cox that flattens
+the distributions
+
+```{r}
+# 10-fold cross validation with 3 repeats
+
+trainControl <- 
+  trainControl(method = "repeatedcv", 
+               number = 10, 
+               repeats = 3)
+
+
+metric <- "Accuracy"
+
+# Bagged CART
+set.seed(1)
+fit.treebag <- dataset %>% 
+  train(diagnosis ~ ., 
+        data = ., 
+        method = "treebag", 
+        metric = metric,
+        trControl = trainControl)
+
+# Random Forest
+set.seed(1)
+fit.rf <- dataset %>% 
+  train(diagnosis ~ ., 
+        data = ., 
+        method = "rf", 
+        metric = metric, 
+        preProc = c("BoxCox"),
+        trControl = trainControl)
+
+# Stochastic Gradient Boosting
+set.seed(1)
+fit.gbm <- dataset %>% 
+  train(diagnosis ~ ., 
+        data = ., 
+        method = "gbm", 
+        metric = metric, 
+        preProc = c("BoxCox"),
+        trControl = trainControl, 
+        verbose = FALSE)
+
+# C5.0
+set.seed(1)
+fit.c50 <- dataset %>% 
+  train(diagnosis ~ ., 
+        data = ., 
+        method="C5.0", 
+        metric = metric, 
+        preProc = c("BoxCox"),
+        trControl = trainControl)
+
+# Compare results
+ensembleResults <- resamples(list(BAG=fit.treebag, 
+                                  RF=fit.rf, 
+                                  GBM=fit.gbm, 
+                                  C50=fit.c50))
+```
+
+### ROC curve variable importance
+
+```{r}
+varImp(fit.c50)
+ggplot(varImp(fit.c50))
+
+summary(ensembleResults)
+dotplot(ensembleResults)
+```
+
+
+The best Ensemble Methods is GBM with an Accuracy of 97.74% (the best 
+previous model was 98.03% of SVM tuning) and regarding the Kappa score 
+with the GBM model the score is 95.11% and the previous one It was 
+95.75%%.
+
+## Final Model
+
+We will finish making the final model, our model with better accuracy 
+and Kappa score was the SVM, that's why it will be the final model.
+However, we will also test the C5.0 Ensemble Methods (It also performed 
+well) to compare its execution with the validation set with the other 
+chosen model (SVM).
+
+We are going to capture the parameters of the Box-Cox transformation and
+prepare the data, previously we eliminate the unused attributes, and we 
+convert all the entries to a numerical format but in the training set, 
+now we have to do the same with the validation portion and remove missing 
+values (Na).
+
+### Preparing parameters for data transform
+
+```{r}
+set.seed(1)
+
+preprocessParams <- preProcess(dataset, 
+                               method = c("BoxCox"))
+
+x <- predict(preprocessParams, dataset)
+```
+
+
+Now we will proceed to prepare the validation data set, for this we will 
+eliminate the attributes that we will not use, convert all the input 
+attributes to numerical and finally we will apply the Box-Cox 
+transformation to the input attributes using the parameters prepared in
+training data set. Also remove Na values.
+
+```{r}
+# prepare parameters for data transform
+set.seed(1)
+datasetNoMissing <- dataset[complete.cases(dataset),]
+x <- datasetNoMissing[,2:11]
+preprocessParams <- preProcess(x, method=c("BoxCox"))
+x <- predict(preprocessParams, x)
+
+# Preparing the validation dataset --------------------------------
+set.seed(1)
+
+# remove missing values (not allowed in this implementation of knn)
+validation <- validation[complete.cases(validation),]
+
+# convert to numeric
+for(i in 2:ncol(validation)) {
+  validation[,i] <- as.numeric(as.character(validation[,i]))
+}
+
+# transform the validation dataset
+validationX <- predict(preprocessParams, 
+                       validation[,2:ncol(validation)])
+
+```
+
+### Run final models
+
+### First, we test with the C5.0 model
+
+```{r}
+library(C50)
+set.seed(1)
+
+# Tuning some parameters that previously did not tuning.
+C5.0.Grid <-expand.grid(interaction.depth = c(1,5,9),
+                        n.trees = (1:30)*50,
+                        shrinkage = 0.1,
+                        n.minosinnode =20)
+
+# Train model
+c5model <- C5.0(x = dataset[,-1], 
+                  y = dataset$diagnosis,
+                  preProc = c("BoxCox"),
+                  Grid =C5.0.Grid,
+                  tuneLength=30,
+                  trControl = trainControl)
+
+# Model C5.0 predictions with the validation set
+predictions <- predict.C5.0(c5model, validationX)
+
+# Confusion Matrix for C5.0 model
+confusionMatrix(as.factor(predictions), 
+                validation$diagnosis)
+```
+
+### Model SVM predictions with validation set
+
+```{r}
+# This is previously tuning
+set.seed(1)
+predictions <- predict(fit.svm, validation[,-1])
+
+# Confusion Matrix for SVM model
+confusionMatrix(as.factor(predictions), 
+                validation$diagnosis)
+
+```
+
+# 4. Results
+
+With the C5.0 in the previous train the score was 97.22%, now 
+with the validation set the Accuracy is 92.92%, much smaller.
+The kappa score was 84.69%, sensitivity of 95.77% and the 
+specificity of 88.10%.
+
+Our best and final model is SVM, it has 96.46% of Accuracy and
+92.42% in kappa score. The Sensitivity is 97.18% and the Specificity 
+is 95.24%
+
+# 5. Conclusion
+In this project, the diagnosis data of Wisconsin Madison breast 
+cancer was studied as a Binary Classification problem.
+
+We investigated several models and the less precise ones were 
+discarded and we advanced with those that best suited our case.
+
+The best model turned out to be SVM, at the start we obtained an 
+Accuracy of 98.03% and a kappa score of 95.75%.
+When we tested them with the validation set, the result was 96.46% 
+of Accuracy and 92.42% in kappa score, with a Sensitivity of 97.18% 
+and a Specificity of 95.24%, it is a good performance for our final 
+model
